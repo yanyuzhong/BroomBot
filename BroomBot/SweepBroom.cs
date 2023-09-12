@@ -56,7 +56,7 @@ namespace BroomBot
 
                 // Find PRs that were created before the stale date, otherwise they're too new to be relevant
                 // The stale date is today minus the user configured number of hours it takes something to get stale
-                DateTime staleDate = DateTime.Now.AddHours(-staleAge).ToUniversalTime();
+                DateTime staleDate = DateTime.Now.AddMinutes(-staleAge).ToUniversalTime();
                 IList<GitPullRequest> createdBeforeStaleDate = allPRs.Where(p => p.CreationDate < staleDate).ToList();
                 log.LogInformation($"Found {createdBeforeStaleDate.Count} pull requests created before {staleDate}");
 
