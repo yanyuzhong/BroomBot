@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "BroomBot": {
+      "commandName": "Project",
+      "commandLineArgs": "--verbose"
+    }
+  }
+}

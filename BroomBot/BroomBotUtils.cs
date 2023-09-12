@@ -4,6 +4,9 @@ using Microsoft.TeamFoundation.Core.WebApi;
 using System.Threading.Tasks;
 using System.Linq;
 using System;
+using System.Net.Http;
+using BroomBot.Model;
+
 namespace BroomBot
 {
     public static class BroomBotUtils
@@ -146,6 +149,28 @@ namespace BroomBot
             }
             
             return true;
+        }
+
+        public static async Task<bool> CreateWorkItem(HttpClient httpClient, string organization, string project, string type)
+        {
+            string uri = $"https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/${type}?api-version=6.1-preview.3";
+            UserStoryCreateRequest postContent = new UserStoryCreateRequest()
+            {
+                op = "add",
+                path = "/fields/System.Title",
+                value = "BroomBot: Stale PRs"
+            };
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(postContent);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json-patch+json");
+            var response = await httpClient.PostAsync(uri, content);
+            if (response.IsSuccessStatusCode)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 }
