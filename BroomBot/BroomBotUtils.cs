@@ -10,6 +10,9 @@ using System.Net.Http.Headers;
 using System.Web;
 using static System.Net.WebRequestMethods;
 using System.Text;
+using Microsoft.VisualStudio.Services.Organization.Client;
+using System.IO;
+using Newtonsoft.Json;
 
 namespace BroomBot
 {
@@ -66,11 +69,13 @@ namespace BroomBot
             return pullCollection;
         }
 
-        public static async Task<Dictionary<GitPullRequest, string>> CheckPullRequestComments(GitHttpClient gitClient,
+        public static async Task<Dictionary<GitPullRequestCommentThread, string>> CheckPullRequestComments(GitHttpClient gitClient,
+            string organization,
             string project,
-            IList<GitPullRequest> pullRequests, string botId, HashSet<string> keywords)
+            IList<GitPullRequest> pullRequests, string botId, HashSet<string> keywords, string token, HttpClient client)
         {
-            Dictionary<GitPullRequest, string> pullCollection = new Dictionary<GitPullRequest, string>();
+            Dictionary<GitPullRequestCommentThread, string> pullCollection = new Dictionary<GitPullRequestCommentThread, string>();
+
 
             foreach (GitPullRequest pr in pullRequests)
             {
@@ -87,7 +92,20 @@ namespace BroomBot
                             int startIdx = comment.IndexOf(keyword, StringComparison.OrdinalIgnoreCase);
                             if (startIdx >= 0)
                             {
-                                pullCollection.Add(pr, comment[startIdx..]);
+                                // create the work item
+                                pullCollection.Add(thread, comment[startIdx..]);
+                                WorkItemCreateResponse res = await BroomBotUtils.CreateWorkItem(client, organization, project, "Task", token, comment[startIdx..]);
+
+                                string commentMessage = $"Work item created by bot. See link: {res.Link.html.href}";
+                                Comment botComment = new Comment { Content = commentMessage };
+                                List<Comment> commentList = new List<Comment> { botComment };
+                                GitPullRequestCommentThread commentThread = new GitPullRequestCommentThread
+                                {
+                                    Comments = commentList,
+                                    Status = CommentThreadStatus.Active
+                                };
+                                await gitClient.CreateThreadAsync(commentThread, pr.Repository.Id, pr.PullRequestId);
+                                break;
                             }
                         }
                     }
@@ -143,7 +161,7 @@ namespace BroomBot
                 }
 
                 // Add a comment to the PR describing that it's stale
-                Comment comment = new Comment { Content = string.Format(commentMessage, pr.Key.CreatedBy.Id) };
+                Comment comment = new Comment { Content = string.Format(commentMessage, pr.Key.Reviewers[0].Id) };
                 List<Comment> commentList = new List<Comment> { comment };
                 GitPullRequestCommentThread commentThread = new GitPullRequestCommentThread
                 {
@@ -186,7 +204,7 @@ namespace BroomBot
             return true;
         }
 
-        public static async Task<bool> CreateWorkItem(HttpClient httpClient, string organization, string project, string type, string token, string workItemName)
+        public static async Task<WorkItemCreateResponse> CreateWorkItem(HttpClient httpClient, string organization, string project, string type, string token, string workItemName)
         {
             var authValue = new AuthenticationHeaderValue("Basic",
                 Convert.ToBase64String(
@@ -209,15 +227,15 @@ namespace BroomBot
             request.Headers.Add("Accept", "application/json-patch+json");
             request.Headers.Authorization = authValue;
             var response = await httpClient.SendAsync(request);
-            string responseBody = await response.Content.ReadAsStringAsync();
             if (response.IsSuccessStatusCode)
             {
-                responseBody = await response.Content.ReadAsStringAsync();
-                return true;
+                string responseBody = await response.Content.ReadAsStringAsync();
+                WorkItemCreateResponse workItem = JsonConvert.DeserializeObject<WorkItemCreateResponse>(responseBody);
+                return workItem;
             }
             else
             {
-                return false;
+                return null;
             }
         }
     }

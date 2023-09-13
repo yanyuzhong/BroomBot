@@ -29,7 +29,7 @@ namespace BroomBot
             //string PAT = Environment.GetEnvironmentVariable("PAT", EnvironmentVariableTarget.Process);
             //string organization = Environment.GetEnvironmentVariable("Organization", EnvironmentVariableTarget.Process);
             //string project = Environment.GetEnvironmentVariable("Project", EnvironmentVariableTarget.Process);
-            string PAT = "";
+            string PAT = "5zd77kkfvex73szi2axnlg4vqhsnvrkongttageginn3aewk23ga";
             string organization = "yanyuzhong";
             string project = "2023Hackathon";
 
@@ -60,14 +60,9 @@ namespace BroomBot
 
                 // Go through comments in the PR and find keyword "create work item", if found, create a work item
                 HashSet<string> keywords = new HashSet<string>() { "create work item", "work item", "task", "create task", "create a task", "create a work item"};
-                Dictionary<GitPullRequest, string> pr2WorkItem = await BroomBotUtils.CheckPullRequestComments(gitClient, project, allPRs, botId, keywords);
-                // create the work item
                 using (HttpClient client = new HttpClient())
                 {
-                    foreach (KeyValuePair<GitPullRequest, string> pr in pr2WorkItem)
-                    {
-                        await BroomBotUtils.CreateWorkItem(client, organization, project, "Task", PAT, pr.Value);
-                    }
+                    Dictionary<GitPullRequestCommentThread, string> pr2WorkItem = await BroomBotUtils.CheckPullRequestComments(gitClient, organization, project, allPRs, botId, keywords, PAT, client);
                 }
 
                 // Find PRs that were created before the stale date, otherwise they're too new to be relevant
