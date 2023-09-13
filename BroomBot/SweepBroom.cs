@@ -29,7 +29,7 @@ namespace BroomBot
             //string PAT = Environment.GetEnvironmentVariable("PAT", EnvironmentVariableTarget.Process);
             //string organization = Environment.GetEnvironmentVariable("Organization", EnvironmentVariableTarget.Process);
             //string project = Environment.GetEnvironmentVariable("Project", EnvironmentVariableTarget.Process);
-            string PAT = "d562jutxuvg2sh5jj6o2a4xzxj5ecju54i5zbvgpilifc24ediaq";
+            string PAT = "";
             string organization = "yanyuzhong";
             string project = "2023Hackathon";
 
