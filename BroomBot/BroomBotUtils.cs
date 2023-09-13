@@ -6,6 +6,10 @@ using System.Linq;
 using System;
 using System.Net.Http;
 using BroomBot.Model;
+using System.Net.Http.Headers;
+using System.Web;
+using static System.Net.WebRequestMethods;
+using System.Text;
 
 namespace BroomBot
 {
@@ -61,6 +65,37 @@ namespace BroomBot
 
             return pullCollection;
         }
+
+        public static async Task<Dictionary<GitPullRequest, string>> CheckPullRequestComments(GitHttpClient gitClient,
+            string project,
+            IList<GitPullRequest> pullRequests, string botId, HashSet<string> keywords)
+        {
+            Dictionary<GitPullRequest, string> pullCollection = new Dictionary<GitPullRequest, string>();
+
+            foreach (GitPullRequest pr in pullRequests)
+            {
+                IList<GitPullRequestCommentThread> threads = await gitClient.GetThreadsAsync(project, pr.Repository.Id, pr.PullRequestId);
+
+                foreach (GitPullRequestCommentThread thread in threads)
+                {
+                    if (thread.Comments.Last().Author.Id != botId)
+                    {
+                        string comment = thread.Comments.Last().Content;
+
+                        foreach (string keyword in keywords)
+                        {
+                            int startIdx = comment.IndexOf(keyword, StringComparison.OrdinalIgnoreCase);
+                            if (startIdx >= 0)
+                            {
+                                pullCollection.Add(pr, comment[startIdx..]);
+                            }
+                        }
+                    }
+                } 
+            }
+
+            return pullCollection;
+        } 
 
         public static async Task<IList<GitPullRequest>> TagStalePullRequests(
             GitHttpClient gitClient,
@@ -151,20 +186,33 @@ namespace BroomBot
             return true;
         }
 
-        public static async Task<bool> CreateWorkItem(HttpClient httpClient, string organization, string project, string type)
+        public static async Task<bool> CreateWorkItem(HttpClient httpClient, string organization, string project, string type, string token, string workItemName)
         {
-            string uri = $"https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/${type}?api-version=6.1-preview.3";
+            var authValue = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(
+                    System.Text.ASCIIEncoding.ASCII.GetBytes(
+                        string.Format("{0}:{1}", "", token))));
+
+            var encodedType = HttpUtility.UrlEncode(type);
+            string uri = $"https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/${encodedType}?api-version=6.1-preview.3";
             UserStoryCreateRequest postContent = new UserStoryCreateRequest()
             {
                 op = "add",
                 path = "/fields/System.Title",
-                value = "BroomBot: Stale PRs"
+                value = workItemName
             };
-            var json = Newtonsoft.Json.JsonConvert.SerializeObject(postContent);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json-patch+json");
-            var response = await httpClient.PostAsync(uri, content);
+            List<UserStoryCreateRequest> postContents = new List<UserStoryCreateRequest>() { postContent };
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(postContents);
+            var content = new StringContent(json, Encoding.UTF8, "application/json-patch+json");
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, uri);
+            request.Content = content;
+            request.Headers.Add("Accept", "application/json-patch+json");
+            request.Headers.Authorization = authValue;
+            var response = await httpClient.SendAsync(request);
+            string responseBody = await response.Content.ReadAsStringAsync();
             if (response.IsSuccessStatusCode)
             {
+                responseBody = await response.Content.ReadAsStringAsync();
                 return true;
             }
             else
